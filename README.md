@@ -150,3 +150,5 @@ for döngüsü, break, continue	Kum fırtınası simülasyonu
 do-while döngüsü	Zorluk seçimi, ana komut döngüsü, 3 denemeli hava kilidi şifresi
 Fonksiyon ve işaretçi	degerleriSinirla() değerleri işaretçiyle alıp 0-100 aralığına çeker; suMiktariOku() satırın tamamını kontrol ederek sayı okur
 rand() ve srand(time(NULL))	Tüm rastgele olaylar
+
+
