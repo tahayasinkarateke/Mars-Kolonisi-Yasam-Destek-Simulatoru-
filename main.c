@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 /* Degerleri 0-100 aralıgında sınırlandıran yardımcı fonksiyon */
 void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) {
@@ -26,7 +28,26 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
     if (*modulHasari < 0)   *modulHasari = 0;
 }
 
- int main () {
+/* Tamsayı girişini satırın tamamını kontrol ederek okur. */
+static int suMiktariOku(int *miktar) {
+    char satir[128], *son;
+    if (scanf(" %127[^\n]", satir) != 1) return 0;
+    int karakter = getchar();
+    if (karakter != '\n' && karakter != EOF) {
+        while ((karakter = getchar()) != '\n' && karakter != EOF) {}
+        return 0;
+    }
+    errno = 0;
+    long deger = strtol(satir, &son, 10);
+    if (son == satir || errno == ERANGE || deger < INT_MIN || deger > INT_MAX)
+        return 0;
+    while (isspace((unsigned char)*son)) son++;
+    if (*son != '\0') return 0;
+    *miktar = (int)deger;
+    return 1;
+}
+
+int main(void) {
     /* Durum degiskenleri */
     int saglik = 100;
     int enerji = 100;
@@ -39,9 +60,12 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
     int turSayaci = 0;
     
     char zorluk = ' ';
-    int firtinaSuresi = 5; // Varsayılan fırtına tur sayısı
+    int firtinaSuresi = 5;
+    int kesifEsikYuksek = 60, kesifEsikDusuk = 30;
+    int firtinaSaglikEsigi = 25, firtinaSizintiEsigi = 50, firtinaHasarEsigi = 75;
     int oyunDevam = 1;
     char komut = ' ';
+    int cikisKomutu = 0;
 
     /* Rastgele sayı üreteci baslatma */
     srand((unsigned int)time(NULL));
@@ -54,14 +78,16 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
     int gecerliZorluk = 0;
     do {
         printf("Zorluk Seviyesi Seciniz (K: Kolay, N: Normal, Z: Zor): ");
-        if (scanf(" %c", &zorluk) != 1) continue;
-        zorluk = toupper(zorluk);
+        if (scanf(" %c", &zorluk) != 1) return 0;
+        zorluk = (char)toupper((unsigned char)zorluk);
 
         switch (zorluk) {
             case 'K':
                 saglik = 100; enerji = 100; oksijen = 100;
                 su = 15; yedekParca = 5; modulHasari = 0;
                 firtinaSuresi = 3;
+                kesifEsikYuksek = 70; kesifEsikDusuk = 40;
+                firtinaSaglikEsigi = 15; firtinaSizintiEsigi = 35; firtinaHasarEsigi = 60;
                 gecerliZorluk = 1;
                 printf("\n[ZORLUK]: KOLAY mod secildi. Baslangic kaynaklari artirildi.\n");
                 break;
@@ -76,6 +102,8 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 saglik = 80; enerji = 80; oksijen = 80;
                 su = 5; yedekParca = 1; modulHasari = 25;
                 firtinaSuresi = 7;
+                kesifEsikYuksek = 50; kesifEsikDusuk = 20;
+                firtinaSaglikEsigi = 35; firtinaSizintiEsigi = 60; firtinaHasarEsigi = 85;
                 gecerliZorluk = 1;
                 printf("\n[ZORLUK]: ZOR mod secildi. Baslangic kaynaklari kısıtli!\n");
                 break;
@@ -95,7 +123,7 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
         printf("Komutlar: [G] Kesif | [O] Oksijen Uret | [T] Tamir | [D] Durum | [U] Uyut/Dinlen\n");
         printf("          [K] Kum Firtinasi | [H] Hava Kilidi | [Q] Cikis\n");
         printf("Komut Giriniz: ");
-        scanf(" %c", &komut);
+        if (scanf(" %c", &komut) != 1) break;
 
         int gecerliTurKomutu = 0; // Tur sayacını artırıp artırmayacagını takip eder
 
@@ -104,8 +132,8 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
             case 'g':
             case 'G': {
                 /* Kesif Görevi */
-                if (enerji < 15 || oksijen < 10) {
-                    printf("\n[YETERSIZ KAYNAK]: Kesif icin en az 15 Enerji ve 10 Oksijen gerekli!\n");
+                if (enerji < 15) {
+                    printf("\n[YETERSIZ KAYNAK]: Kesif icin en az 15 Enerji gerekli!\n");
                     break;
                 }
                 enerji -= 15;
@@ -126,9 +154,9 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 /* Su / Parca Bulma Esiği Belirleme */
                 int esikBulma;
                 if (enerji > 40 && oksijen > 30) {
-                    esikBulma = 60; // Yüksek ihtimal
+                    esikBulma = kesifEsikYuksek; // Yüksek ihtimal
                 } else {
-                    esikBulma = 30; // Düsük ihtimal
+                    esikBulma = kesifEsikDusuk; // Düsük ihtimal
                 }
 
                 int zarKesif = rand() % 100;
@@ -136,12 +164,13 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 
                 if (zarKesif < esikBulma) {
                     int secimZari = rand() % 100;
+                    printf(" -> BASARILI\n[Kaynak Zari]: %d / Esik: 50", secimZari);
                     if (secimZari < 50) {
                         su += 4;
-                        printf(" -> BASARILI (Kesifte 4 birim SU bulundu!)\n");
+                        printf(" -> 4 birim SU bulundu!\n");
                     } else {
                         yedekParca += 2;
-                        printf(" -> BASARILI (Kesifte 2 adet YEDEK PARCA bulundu!)\n");
+                        printf(" -> 2 adet YEDEK PARCA bulundu!\n");
                     }
                 } else {
                     printf(" -> ELI BOS DONDUNUZ (Hicbir sey bulunamadi).\n");
@@ -163,9 +192,7 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
 
                 int harcanacakSu;
                 printf("\nKac birim su kullanilsin? (Mevcut Su: %d): ", su);
-                scanf("%d", &harcanacakSu);
-
-                if (harcanacakSu <= 0 || harcanacakSu > su) {
+                if (!suMiktariOku(&harcanacakSu) || harcanacakSu < 1 || harcanacakSu > su) {
                     printf("[HATA]: Gecersiz su miktari girdiniz. Komut iptal edildi.\n");
                     break;
                 }
@@ -238,18 +265,14 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 printf("------------------------------------------\n");
 
                 /* Kritik Uyanlar ve Tek Koşullu Normal Durum (&& Zorunlulugu) */
-                int kritikVar = 0;
                 if (oksijen < 25) {
                     printf("[UYARI]: Oksijen kritik seviyede! (<25)\n");
-                    kritikVar = 1;
                 }
                 if (saglik < 30) {
                     printf("[UYARI]: Saglik kritik seviyede! (<30)\n");
-                    kritikVar = 1;
                 }
                 if (modulHasari > 70) {
                     printf("[UYARI]: Modul hasari kritik seviyede! (>70%%)\n");
-                    kritikVar = 1;
                 }
 
                 if (oksijen >= 25 && saglik >= 30 && modulHasari <= 70) {
@@ -266,13 +289,15 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 enerji += 25;
                 oksijen -= 5;
 
-                /* Ic ice IF (Nested IF) Zorunlulugu */
-                if (oksijen < 20) {
-                    saglik -= 10;
-                    printf("\n[REST]: Oksijen yetersiz (<20)! Uykuda bogulma riski nedeniyle saglik kaybettiniz (-10 Saglik).\n");
-                } else {
-                    saglik += 15;
-                    printf("\n[REST]: Dinlendiniz. (+25 Enerji, +15 Saglik, -5 Oksijen).\n");
+                /* Önce oksijen kaybı, ardından dinlenmenin sağlık etkisi. */
+                if (saglik > 0) {
+                    if (oksijen < 20) {
+                        saglik -= 10;
+                        printf("\n[REST]: Oksijen yetersiz (<20). -10 Saglik.\n");
+                    } else {
+                        saglik += 15;
+                        printf("\n[REST]: +25 Enerji, +15 Saglik, -5 Oksijen.\n");
+                    }
                 }
                 break;
             }
@@ -289,44 +314,47 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 int hasarAlinanTurSayisi = 0;
 
                 for (int t = 1; t <= firtinaSuresi; t++) {
-                    /* Erken Cıkıs Kontrolü (BREAK Zorunlulugu) */
-                    if (saglik <= 0 || oksijen <= 0) {
-                        printf("[FIRTINA]: Yasamsal veriler sifirlandi! Firtina dongusu kesiliyor!\n");
-                        break;
-                    }
-
                     int zarFirtina = rand() % 100;
                     int carpan = (t % 2 == 0) ? 2 : 1; // Cift turlarda rüzgar 2 kat siddetlenir
 
-                    printf("Tur %d/%d [Zar: %d] ", t, firtinaSuresi, zarFirtina);
+                    printf("Tur %d/%d [Zar: %d | Esikler: saglik %d, sizinti %d, modul %d] ",
+                           t, firtinaSuresi, zarFirtina, firtinaSaglikEsigi,
+                           firtinaSizintiEsigi, firtinaHasarEsigi);
 
-                    if (zarFirtina < 25) {
+                    if (zarFirtina < firtinaSaglikEsigi) {
                         // Can Kaybı
                         int kayb = 10 * carpan;
+                        if (kayb > saglik) kayb = saglik;
                         saglik -= kayb;
                         toplamCanKaybi += kayb;
                         hasarAlinanTurSayisi++;
                         printf("-> Enkaz firladi! Can kaybi: -%d\n", kayb);
-                    } else if (zarFirtina < 50) {
+                    } else if (zarFirtina < firtinaSizintiEsigi) {
                         // Oksijen Sızıntısı (CONTINUE Zorunlulugu)
                         if (kilitMuhurlu == 1) {
                             printf("-> Hava kilidi muhurlu oldugu icin sızıntı engellendi! (CONTINUE)\n");
                             continue; // Oksijen kaybı adımı atlanır
                         }
                         int kayb = 15 * carpan;
+                        if (kayb > oksijen) kayb = oksijen;
                         oksijen -= kayb;
                         toplamOksijenKaybi += kayb;
                         hasarAlinanTurSayisi++;
                         printf("-> Basınc dusu! Oksijen sızıntisi: -%d\n", kayb);
-                    } else if (zarFirtina < 75) {
+                    } else if (zarFirtina < firtinaHasarEsigi) {
                         // Modül Hasarı
                         int kayb = 12 * carpan;
+                        if (kayb > 100 - modulHasari) kayb = 100 - modulHasari;
                         modulHasari += kayb;
                         toplamHasar += kayb;
-                        hasarAlinanTurSayisi++;
+                        if (kayb > 0) hasarAlinanTurSayisi++;
                         printf("-> Panel darbe aldi! Modul Hasari: +%%%d\n", kayb);
                     } else {
                         printf("-> Sığınak koruma sağladı (Zararsız atlatıldı).\n");
+                    }
+                    if (saglik == 0 || oksijen == 0) {
+                        printf("[FIRTINA]: Yasamsal veriler sifirlandi. Firtina sona erdi.\n");
+                        break;
                     }
                 }
 
@@ -339,7 +367,11 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
 
             case 'h':
             case 'H': {
-                /* DO-WHILE Döngüsü ile Hava Kilidi Şifresi */
+                /* Üç yanlış tahminin enerji maliyeti 15'tir. */
+                if (enerji < 15) {
+                    printf("\n[YETERSIZ KAYNAK]: Hava kilidi icin en az 15 Enerji gerekli.\n");
+                    break;
+                }
                 gecerliTurKomutu = 1;
                 char sifre = 'A' + (gun % 26); // Gun sayısından türetilen alfabetik sifre
                 char tahmin = ' ';
@@ -351,8 +383,12 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                 /* Sınırlı Denemeli DO-WHILE Döngüsü */
                 do {
                     printf("Kalan Deneme: %d | Sifre Tahmininiz (A-Z): ", denemeHakki);
-                    scanf(" %c", &tahmin);
-                    tahmin = toupper(tahmin);
+                    if (scanf(" %c", &tahmin) != 1) {
+                        gecerliTurKomutu = 0;
+                        oyunDevam = 0;
+                        break;
+                    }
+                    tahmin = (char)toupper((unsigned char)tahmin);
 
                     if (tahmin == sifre) {
                         kilitMuhurlu = 1;
@@ -362,7 +398,9 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                         denemeHakki--;
                         enerji -= 5;
                         printf("[HATA]: Yanlis Sifre! (-5 Enerji). ");
-                        if (tahmin < sifre) {
+                        if (tahmin < 'A' || tahmin > 'Z') {
+                            printf("A-Z arasinda bir harf giriniz.\n");
+                        } else if (tahmin < sifre) {
                             printf("Ipucu: Daha ILERI bir harf giriniz.\n");
                         } else {
                             printf("Ipucu: Daha GERI bir harf giriniz.\n");
@@ -370,7 +408,7 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
                     }
                 } while (tahmin != sifre && denemeHakki > 0);
 
-                if (kilitMuhurlu == 0) {
+                if (denemeHakki == 0) {
                     modulHasari += 20;
                     printf("[KILIT BASARISIZ]: 3 hak da tukendi! Sistem zorlandi, Modul Hasari +%%20 artirildi.\n");
                 }
@@ -381,6 +419,8 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
             case 'Q': {
                 printf("\n[CIKIS]: Simulasyondan kendi isteginizle cıkıyorsunuz...\n");
                 oyunDevam = 0;
+                cikisKomutu = 1;
+                turSayaci++;
                 break;
             }
 
@@ -396,7 +436,7 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
         /* Zaman Akısı ve Gun/Tur Takibi */
         if (gecerliTurKomutu) {
             turSayaci++;
-            if (turSayaci % 3 == 0) {
+            if (turSayaci % 3 == 0 && gun < 15 && saglik > 0 && oksijen > 0) {
                 gun++;
                 oksijen -= 8; // Gun bası sabit oksijen tüketimi
                 printf("\n>>> YENI GUN BASLADI! (Gun: %d) <<< (-8 Oksijen tuketildi)\n", gun);
@@ -418,7 +458,7 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
             printf("\n================ BAD END: OKSİJEN TÜKENDİ ==================\n");
             printf("Oksijeniniz bitti. İstasyonda boğularak hayatınızı kaybettiniz.\n");
             oyunDevam = 0;
-        } else if (gun > 15) {
+        } else if (oyunDevam && gun == 15 && turSayaci == 45) {
             printf("\n================ VICTORY: KURTARMA EKİBİ GELDİ! ================\n");
             printf("Tebrikler! 15 gün boyunca Mars'ın zorlu şartlarında hayatta kaldınız!\n");
             oyunDevam = 0;
@@ -432,11 +472,16 @@ void degerleriSinirla(int *saglik, int *enerji, int *oksijen, int *modulHasari) 
     printf("\n====================================================\n");
     printf("              SIMULASYON SONU RAPORU                \n");
     printf("====================================================\n");
-    printf(" Hayatta Kalınan Gun : %d / 15\n", (gun > 15) ? 15 : gun);
+    printf(" Tamamlanan Gun      : %d / 15\n", (turSayaci - cikisKomutu) / 3);
+    printf(" Son Gun             : %d\n", gun);
     printf(" Toplam Tamamlanan Tur: %d\n", turSayaci);
     printf(" Son Saglik Durumu   : %d\n", saglik);
     printf(" Son Oksijen Durumu  : %d\n", oksijen);
     printf(" Son Modul Hasari    : %%%d\n", modulHasari);
+    printf(" Son Enerji Durumu   : %d\n", enerji);
+    printf(" Kalan Su            : %d\n", su);
+    printf(" Kalan Yedek Parca   : %d\n", yedekParca);
+    printf(" Hava Kilidi         : %s\n", kilitMuhurlu ? "Muhurlu" : "Acik");
     printf("----------------------------------------------------\n");
     printf(" TOPLAM SCORE / PUAN : %d\n", puan);
     printf("====================================================\n");
